@@ -218,6 +218,7 @@ func run(c *cli.Context) error {
 		Cluster:                      c.String("cluster"),
 		LogDriver:                    c.String("log-driver"),
 		LogOptions:                   c.StringSlice("log-options"),
+		Containers:                   c.StringSlice("containers"),
 		PortMappings:                 c.StringSlice("port-mappings"),
 		Environment:                  c.StringSlice("environment-variables"),
 		SecretEnvironment:            c.StringSlice("secret-environment-variables"),
