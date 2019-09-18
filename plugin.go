@@ -17,6 +17,7 @@ type TaskContainer struct {
 	Name              string
 	DockerImage       string
 	Tag               string
+	PortMappings      string
 	CPU               int64
 	Memory            int64
 	MemoryReservation int64
@@ -34,7 +35,6 @@ type Plugin struct {
 	LogDriver               string
 	LogOptions              []string
 	DeploymentConfiguration string
-	PortMappings            []string
 	Environment             []string
 	SecretEnvironment       []string
 	Labels                  []string
@@ -102,14 +102,18 @@ func (p *Plugin) Exec() error {
 			}
 		}
 		if len(containerAttrs) == 4 {
-			newContainer.CPU, _ = strconv.ParseInt(containerAttrs[3], 10, 64)
+			newContainer.PortMappings = containerAttrs[3]
 
 		}
 		if len(containerAttrs) == 5 {
-			newContainer.Memory, _ = strconv.ParseInt(containerAttrs[4], 10, 64)
+			newContainer.CPU, _ = strconv.ParseInt(containerAttrs[4], 10, 64)
+
 		}
 		if len(containerAttrs) == 6 {
-			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+			newContainer.Memory, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+		}
+		if len(containerAttrs) == 7 {
+			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[6], 10, 64)
 		}
 		containers = append(containers, &newContainer)
 	}
@@ -161,30 +165,28 @@ func (p *Plugin) Exec() error {
 		}
 
 		// Port mappings
-		for _, portMapping := range p.PortMappings {
-			cleanedPortMapping := strings.Trim(portMapping, " ")
-			parts := strings.SplitN(cleanedPortMapping, " ", 2)
-			hostPort, hostPortErr := strconv.ParseInt(parts[0], 10, 64)
-			if hostPortErr != nil {
-				hostPortWrappedErr := errors.New(hostPortBaseParseErr + hostPortErr.Error())
-				fmt.Println(hostPortWrappedErr.Error())
-				return hostPortWrappedErr
-			}
-			containerPort, containerPortErr := strconv.ParseInt(parts[1], 10, 64)
-			if containerPortErr != nil {
-				containerPortWrappedErr := errors.New(containerBaseParseErr + containerPortErr.Error())
-				fmt.Println(containerPortWrappedErr.Error())
-				return containerPortWrappedErr
-			}
-
-			pair := ecs.PortMapping{
-				ContainerPort: aws.Int64(containerPort),
-				HostPort:      aws.Int64(hostPort),
-				Protocol:      aws.String("TransportProtocol"),
-			}
-
-			definition.PortMappings = append(definition.PortMappings, &pair)
+		cleanedPortMapping := strings.Trim(taskContainer.PortMappings, " ")
+		parts := strings.SplitN(cleanedPortMapping, " ", 2)
+		hostPort, hostPortErr := strconv.ParseInt(parts[0], 10, 64)
+		if hostPortErr != nil {
+			hostPortWrappedErr := errors.New(hostPortBaseParseErr + hostPortErr.Error())
+			fmt.Println(hostPortWrappedErr.Error())
+			return hostPortWrappedErr
 		}
+		containerPort, containerPortErr := strconv.ParseInt(parts[1], 10, 64)
+		if containerPortErr != nil {
+			containerPortWrappedErr := errors.New(containerBaseParseErr + containerPortErr.Error())
+			fmt.Println(containerPortWrappedErr.Error())
+			return containerPortWrappedErr
+		}
+
+		pair := ecs.PortMapping{
+			ContainerPort: aws.Int64(containerPort),
+			HostPort:      aws.Int64(hostPort),
+			Protocol:      aws.String("TransportProtocol"),
+		}
+
+		definition.PortMappings = []*ecs.PortMapping{&pair}
 
 		// Environment variables
 		for _, envVar := range p.Environment {
