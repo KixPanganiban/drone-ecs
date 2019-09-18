@@ -28,7 +28,7 @@ type Plugin struct {
 	Region                  string
 	Family                  string
 	TaskRoleArn             string
-	Containers              []TaskContainer
+	Containers              []string
 	Service                 string
 	Cluster                 string
 	LogDriver               string
@@ -66,6 +66,7 @@ type Plugin struct {
 }
 
 const (
+	containerStringParseErr           = "error parsing container string: "
 	softLimitBaseParseErr             = "error parsing ulimits softLimit: "
 	hardLimitBaseParseErr             = "error parsing ulimits hardLimit: "
 	hostPortBaseParseErr              = "error parsing port_mappings hostPort: "
@@ -85,8 +86,35 @@ func (p *Plugin) Exec() error {
 	svc := ecs.New(session.New(&awsConfig))
 
 	definitions := []*ecs.ContainerDefinition{}
+	containers := []*TaskContainer{}
 
-	for _, taskContainer := range p.Containers {
+	for _, containerString := range p.Containers {
+		containerAttrs := strings.Split(containerString, ":")
+		var newContainer TaskContainer
+		if len(containerAttrs) < 3 {
+			return errors.New(hostPortBaseParseErr + containerString)
+		}
+		if len(containerAttrs) >= 3 {
+			newContainer = TaskContainer{
+				Name:        containerAttrs[0],
+				DockerImage: containerAttrs[1],
+				Tag:         containerAttrs[2],
+			}
+		}
+		if len(containerAttrs) == 4 {
+			newContainer.CPU, _ = strconv.ParseInt(containerAttrs[3], 10, 64)
+
+		}
+		if len(containerAttrs) == 5 {
+			newContainer.Memory, _ = strconv.ParseInt(containerAttrs[4], 10, 64)
+		}
+		if len(containerAttrs) == 6 {
+			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+		}
+		containers = append(containers, &newContainer)
+	}
+
+	for _, taskContainer := range containers {
 
 		Image := taskContainer.DockerImage + ":" + taskContainer.Tag
 		if len(taskContainer.Name) == 0 {
