@@ -300,10 +300,10 @@ func (p *Plugin) Exec() error {
 
 	params := &ecs.RegisterTaskDefinitionInput{
 		ContainerDefinitions: definitions,
-		Family:               aws.String(p.Family),
-		Volumes:              []*ecs.Volume{},
-		TaskRoleArn:          aws.String(p.TaskRoleArn),
-		NetworkMode:          aws.String(p.NetworkMode),
+		Family:               currentTaskDefinition.Family,
+		Volumes:              currentTaskDefinition.Volumes,
+		TaskRoleArn:          currentTaskDefinition.TaskRoleArn,
+		NetworkMode:          currentTaskDefinition.NetworkMode,
 	}
 
 	cleanedCompatibilities := strings.Trim(p.Compatibilities, " ")
@@ -401,6 +401,7 @@ func (p *Plugin) setupServiceNetworkConfiguration() *ecs.NetworkConfiguration {
 func (p *Plugin) getOrCreateContainerDefinition(td *ecs.TaskDefinition, cn string, image string) *ecs.ContainerDefinition {
 	for _, containerDefinition := range td.ContainerDefinitions {
 		if *containerDefinition.Name == cn {
+			containerDefinition.Image = aws.String(image)
 			return containerDefinition
 		}
 	}
