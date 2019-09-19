@@ -85,6 +85,26 @@ func (p *Plugin) Exec() error {
 	awsConfig.Region = aws.String(p.Region)
 	svc := ecs.New(session.New(&awsConfig))
 
+	describeServicesInput := ecs.DescribeServicesInput{
+		Cluster:  aws.String(p.Cluster),
+		Services: []*string{aws.String(p.Service)},
+	}
+	describeServicesOutput, describeServicesErr := svc.DescribeServices(&describeServicesInput)
+	if describeServicesErr != nil {
+		fmt.Println(describeServicesErr.Error())
+		return describeServicesErr
+	}
+
+	describeTaskDefinitionInput := ecs.DescribeTaskDefinitionInput{
+		TaskDefinition: describeServicesOutput.Services[0].TaskDefinition,
+	}
+	describeTaskDefinitionOutput, describeTaskDefinitionErr := svc.DescribeTaskDefinition(&describeTaskDefinitionInput)
+	if describeTaskDefinitionErr != nil {
+		fmt.Println(describeTaskDefinitionErr.Error())
+		return describeTaskDefinitionErr
+	}
+	currentTaskDefinition := describeTaskDefinitionOutput.TaskDefinition
+
 	definitions := []*ecs.ContainerDefinition{}
 	containers := []*TaskContainer{}
 
@@ -119,35 +139,15 @@ func (p *Plugin) Exec() error {
 	}
 
 	for _, taskContainer := range containers {
-
 		Image := taskContainer.DockerImage + ":" + taskContainer.Tag
 		if len(taskContainer.Name) == 0 {
 			taskContainer.Name = p.Family + "-container"
 		}
-
-		definition := ecs.ContainerDefinition{
-			Command: []*string{},
-
-			DnsSearchDomains:      []*string{},
-			DnsServers:            []*string{},
-			DockerLabels:          map[string]*string{},
-			DockerSecurityOptions: []*string{},
-			EntryPoint:            []*string{},
-			Environment:           []*ecs.KeyValuePair{},
-			Essential:             aws.Bool(true),
-			ExtraHosts:            []*ecs.HostEntry{},
-
-			Image:        aws.String(Image),
-			Links:        []*string{},
-			MountPoints:  []*ecs.MountPoint{},
-			Name:         aws.String(taskContainer.Name),
-			PortMappings: []*ecs.PortMapping{},
-
-			Ulimits: []*ecs.Ulimit{},
-			//User: aws.String("String"),
-			VolumesFrom: []*ecs.VolumeFrom{},
-			//WorkingDirectory: aws.String("String"),
-		}
+		definition := p.getOrCreateContainerDefinition(
+			currentTaskDefinition,
+			taskContainer.Name,
+			Image,
+		)
 
 		if taskContainer.CPU != 0 {
 			definition.Cpu = aws.Int64(taskContainer.CPU)
@@ -166,27 +166,29 @@ func (p *Plugin) Exec() error {
 
 		// Port mappings
 		cleanedPortMapping := strings.Trim(taskContainer.PortMappings, " ")
-		parts := strings.SplitN(cleanedPortMapping, " ", 2)
-		hostPort, hostPortErr := strconv.ParseInt(parts[0], 10, 64)
-		if hostPortErr != nil {
-			hostPortWrappedErr := errors.New(hostPortBaseParseErr + hostPortErr.Error())
-			fmt.Println(hostPortWrappedErr.Error())
-			return hostPortWrappedErr
-		}
-		containerPort, containerPortErr := strconv.ParseInt(parts[1], 10, 64)
-		if containerPortErr != nil {
-			containerPortWrappedErr := errors.New(containerBaseParseErr + containerPortErr.Error())
-			fmt.Println(containerPortWrappedErr.Error())
-			return containerPortWrappedErr
-		}
+		if len(cleanedPortMapping) > 0 {
+			parts := strings.SplitN(cleanedPortMapping, " ", 2)
+			hostPort, hostPortErr := strconv.ParseInt(parts[0], 10, 64)
+			if hostPortErr != nil {
+				hostPortWrappedErr := errors.New(hostPortBaseParseErr + hostPortErr.Error())
+				fmt.Println(hostPortWrappedErr.Error())
+				return hostPortWrappedErr
+			}
+			containerPort, containerPortErr := strconv.ParseInt(parts[1], 10, 64)
+			if containerPortErr != nil {
+				containerPortWrappedErr := errors.New(containerBaseParseErr + containerPortErr.Error())
+				fmt.Println(containerPortWrappedErr.Error())
+				return containerPortWrappedErr
+			}
 
-		pair := ecs.PortMapping{
-			ContainerPort: aws.Int64(containerPort),
-			HostPort:      aws.Int64(hostPort),
-			Protocol:      aws.String("TransportProtocol"),
-		}
+			pair := ecs.PortMapping{
+				ContainerPort: aws.Int64(containerPort),
+				HostPort:      aws.Int64(hostPort),
+				Protocol:      aws.String("TransportProtocol"),
+			}
 
-		definition.PortMappings = []*ecs.PortMapping{&pair}
+			definition.PortMappings = []*ecs.PortMapping{&pair}
+		}
 
 		// Environment variables
 		for _, envVar := range p.Environment {
@@ -285,7 +287,7 @@ func (p *Plugin) Exec() error {
 			}
 			definition.HealthCheck = &healthcheck
 		}
-		definitions = append(definitions, &definition)
+		definitions = append(definitions, definition)
 	}
 
 	params := &ecs.RegisterTaskDefinitionInput{
@@ -384,4 +386,37 @@ func (p *Plugin) setupServiceNetworkConfiguration() *ecs.NetworkConfiguration {
 	}
 
 	return &netConfig
+}
+
+// getOrCreateContainerDefinition retrieves a Container Definition from Task Definition td
+// if it exists, otherwise initializes a new one.
+func (p *Plugin) getOrCreateContainerDefinition(td *ecs.TaskDefinition, cn string, image string) *ecs.ContainerDefinition {
+	for _, containerDefinition := range td.ContainerDefinitions {
+		if containerDefinition.Name == aws.String(cn) {
+			return containerDefinition
+		}
+	}
+	return &ecs.ContainerDefinition{
+		Command: []*string{},
+
+		DnsSearchDomains:      []*string{},
+		DnsServers:            []*string{},
+		DockerLabels:          map[string]*string{},
+		DockerSecurityOptions: []*string{},
+		EntryPoint:            []*string{},
+		Environment:           []*ecs.KeyValuePair{},
+		Essential:             aws.Bool(true),
+		ExtraHosts:            []*ecs.HostEntry{},
+
+		Image:        aws.String(image),
+		Links:        []*string{},
+		MountPoints:  []*ecs.MountPoint{},
+		Name:         aws.String(cn),
+		PortMappings: []*ecs.PortMapping{},
+
+		Ulimits: []*ecs.Ulimit{},
+		//User: aws.String("String"),
+		VolumesFrom: []*ecs.VolumeFrom{},
+		//WorkingDirectory: aws.String("String"),
+	}
 }
