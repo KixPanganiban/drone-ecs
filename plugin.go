@@ -400,7 +400,7 @@ func (p *Plugin) setupServiceNetworkConfiguration() *ecs.NetworkConfiguration {
 // if it exists, otherwise initializes a new one.
 func (p *Plugin) getOrCreateContainerDefinition(td *ecs.TaskDefinition, cn string, image string) *ecs.ContainerDefinition {
 	for _, containerDefinition := range td.ContainerDefinitions {
-		if containerDefinition.Name == aws.String(cn) {
+		if *containerDefinition.Name == cn {
 			return containerDefinition
 		}
 	}
