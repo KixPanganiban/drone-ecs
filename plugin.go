@@ -166,7 +166,7 @@ func (p *Plugin) Exec() error {
 
 		// Port mappings
 		cleanedPortMapping := strings.Trim(taskContainer.PortMappings, " ")
-		if len(cleanedPortMapping) > 0 {
+		if len(cleanedPortMapping) > 0 && len(definition.PortMappings) == 0 {
 			parts := strings.SplitN(cleanedPortMapping, " ", 2)
 			hostPort, hostPortErr := strconv.ParseInt(parts[0], 10, 64)
 			if hostPortErr != nil {
@@ -190,70 +190,78 @@ func (p *Plugin) Exec() error {
 			definition.PortMappings = []*ecs.PortMapping{&pair}
 		}
 
-		// Environment variables
-		for _, envVar := range p.Environment {
-			parts := strings.SplitN(envVar, "=", 2)
-			pair := ecs.KeyValuePair{
-				Name:  aws.String(strings.Trim(parts[0], " ")),
-				Value: aws.String(strings.Trim(parts[1], " ")),
+		if len(definition.Environment) == 0 {
+			// Environment variables
+			for _, envVar := range p.Environment {
+				parts := strings.SplitN(envVar, "=", 2)
+				pair := ecs.KeyValuePair{
+					Name:  aws.String(strings.Trim(parts[0], " ")),
+					Value: aws.String(strings.Trim(parts[1], " ")),
+				}
+				definition.Environment = append(definition.Environment, &pair)
 			}
-			definition.Environment = append(definition.Environment, &pair)
+
+			// Secret Environment variables
+			for _, envVar := range p.SecretEnvironment {
+				parts := strings.SplitN(envVar, "=", 2)
+				pair := ecs.KeyValuePair{}
+				if len(parts) == 2 {
+					// set to custom named variable
+					pair.SetName(aws.StringValue(aws.String(strings.Trim(parts[0], " "))))
+					pair.SetValue(aws.StringValue(aws.String(os.Getenv(strings.Trim(parts[1], " ")))))
+				} else if len(parts) == 1 {
+					// default to named var
+					pair.SetName(aws.StringValue(aws.String(parts[0])))
+					pair.SetValue(aws.StringValue(aws.String(os.Getenv(parts[0]))))
+				} else {
+					fmt.Println("invalid syntax in secret enironment var", envVar)
+				}
+				definition.Environment = append(definition.Environment, &pair)
+			}
 		}
 
-		// Secret Environment variables
-		for _, envVar := range p.SecretEnvironment {
-			parts := strings.SplitN(envVar, "=", 2)
-			pair := ecs.KeyValuePair{}
-			if len(parts) == 2 {
-				// set to custom named variable
-				pair.SetName(aws.StringValue(aws.String(strings.Trim(parts[0], " "))))
-				pair.SetValue(aws.StringValue(aws.String(os.Getenv(strings.Trim(parts[1], " ")))))
-			} else if len(parts) == 1 {
-				// default to named var
-				pair.SetName(aws.StringValue(aws.String(parts[0])))
-				pair.SetValue(aws.StringValue(aws.String(os.Getenv(parts[0]))))
-			} else {
-				fmt.Println("invalid syntax in secret enironment var", envVar)
+		if len(definition.Ulimits) == 0 {
+			// Ulimits
+			for _, uLimit := range p.Ulimits {
+				cleanedULimit := strings.Trim(uLimit, " ")
+				parts := strings.SplitN(cleanedULimit, " ", 3)
+				name := strings.Trim(parts[0], " ")
+				softLimit, softLimitErr := strconv.ParseInt(parts[1], 10, 64)
+				if softLimitErr != nil {
+					softLimitWrappedErr := errors.New(softLimitBaseParseErr + softLimitErr.Error())
+					fmt.Println(softLimitWrappedErr.Error())
+					return softLimitWrappedErr
+				}
+				hardLimit, hardLimitErr := strconv.ParseInt(parts[2], 10, 64)
+				if hardLimitErr != nil {
+					hardLimitWrappedErr := errors.New(hardLimitBaseParseErr + hardLimitErr.Error())
+					fmt.Println(hardLimitWrappedErr.Error())
+					return hardLimitWrappedErr
+				}
+
+				pair := ecs.Ulimit{
+					Name:      aws.String(name),
+					HardLimit: aws.Int64(hardLimit),
+					SoftLimit: aws.Int64(softLimit),
+				}
+
+				definition.Ulimits = append(definition.Ulimits, &pair)
 			}
-			definition.Environment = append(definition.Environment, &pair)
 		}
 
-		// Ulimits
-		for _, uLimit := range p.Ulimits {
-			cleanedULimit := strings.Trim(uLimit, " ")
-			parts := strings.SplitN(cleanedULimit, " ", 3)
-			name := strings.Trim(parts[0], " ")
-			softLimit, softLimitErr := strconv.ParseInt(parts[1], 10, 64)
-			if softLimitErr != nil {
-				softLimitWrappedErr := errors.New(softLimitBaseParseErr + softLimitErr.Error())
-				fmt.Println(softLimitWrappedErr.Error())
-				return softLimitWrappedErr
+		if len(definition.DockerLabels) == 0 {
+			// DockerLabels
+			for _, label := range p.Labels {
+				parts := strings.SplitN(label, "=", 2)
+				definition.DockerLabels[strings.Trim(parts[0], " ")] = aws.String(strings.Trim(parts[1], " "))
 			}
-			hardLimit, hardLimitErr := strconv.ParseInt(parts[2], 10, 64)
-			if hardLimitErr != nil {
-				hardLimitWrappedErr := errors.New(hardLimitBaseParseErr + hardLimitErr.Error())
-				fmt.Println(hardLimitWrappedErr.Error())
-				return hardLimitWrappedErr
-			}
-
-			pair := ecs.Ulimit{
-				Name:      aws.String(name),
-				HardLimit: aws.Int64(hardLimit),
-				SoftLimit: aws.Int64(softLimit),
-			}
-
-			definition.Ulimits = append(definition.Ulimits, &pair)
 		}
 
-		// DockerLabels
-		for _, label := range p.Labels {
-			parts := strings.SplitN(label, "=", 2)
-			definition.DockerLabels[strings.Trim(parts[0], " ")] = aws.String(strings.Trim(parts[1], " "))
-		}
-
-		// EntryPoint
-		for _, v := range p.EntryPoint {
-			definition.EntryPoint = append(definition.EntryPoint, &v)
+		if len(definition.EntryPoint) == 0 {
+			// EntryPoint
+			for _, v := range p.EntryPoint {
+				definition.EntryPoint = append(definition.EntryPoint, &v)
+			}
 		}
 
 		// LogOptions
