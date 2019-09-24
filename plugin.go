@@ -129,11 +129,11 @@ func (p *Plugin) Exec() error {
 			newContainer.CPU, _ = strconv.ParseInt(containerAttrs[4], 10, 64)
 
 		}
+		// if len(containerAttrs) >= 6 {
+		// 	newContainer.Memory, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+		// }
 		if len(containerAttrs) >= 6 {
-			newContainer.Memory, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
-		}
-		if len(containerAttrs) >= 7 {
-			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[6], 10, 64)
+			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
 		}
 		containers = append(containers, &newContainer)
 	}
@@ -156,9 +156,9 @@ func (p *Plugin) Exec() error {
 		if taskContainer.Memory == 0 && taskContainer.MemoryReservation == 0 {
 			definition.MemoryReservation = aws.Int64(128)
 		} else {
-			if taskContainer.Memory != 0 {
-				definition.Memory = aws.Int64(taskContainer.Memory)
-			}
+			// if taskContainer.Memory != 0 {
+			// 	definition.Memory = aws.Int64(taskContainer.Memory)
+			// }
 			if taskContainer.MemoryReservation != 0 {
 				definition.MemoryReservation = aws.Int64(taskContainer.MemoryReservation)
 			}
