@@ -129,11 +129,11 @@ func (p *Plugin) Exec() error {
 			newContainer.CPU, _ = strconv.ParseInt(containerAttrs[4], 10, 64)
 
 		}
-		// if len(containerAttrs) >= 6 {
-		// 	newContainer.Memory, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
-		// }
 		if len(containerAttrs) >= 6 {
-			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+			newContainer.Memory, _ = strconv.ParseInt(containerAttrs[5], 10, 64)
+		}
+		if len(containerAttrs) >= 7 {
+			newContainer.MemoryReservation, _ = strconv.ParseInt(containerAttrs[6], 10, 64)
 		}
 		containers = append(containers, &newContainer)
 	}
