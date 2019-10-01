@@ -375,19 +375,20 @@ func (p *Plugin) Exec() error {
 
 	for {
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
+		currTaskDefinitionArn := *describeNewServicesOutput.Services[0].TaskDefinition
 		fmt.Printf("New Task Definition Arn: %s\n", newTaskDefinitionArn)
-		fmt.Printf("Current Task Definition Arn: %s\n", *describeServicesOutput.Services[0].TaskDefinition)
-		if newTaskDefinitionArn == *describeNewServicesOutput.Services[0].TaskDefinition {
+		fmt.Printf("Current Task Definition Arn: %s\n", currTaskDefinitionArn)
+		if newTaskDefinitionArn == currTaskDefinitionArn {
+			fmt.Println("Deployment done.")
 			break
 		} else {
-			time.Sleep(10)
+			time.Sleep(10 * time.Second)
 			fmt.Println("Sleeping for 10 seconds...")
 		}
 	}
 
 	// fmt.Println(sresp)
 	// fmt.Println(resp)
-	fmt.Println("Deployment done.")
 	return nil
 }
 
