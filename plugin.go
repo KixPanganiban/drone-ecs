@@ -376,9 +376,10 @@ func (p *Plugin) Exec() error {
 	for {
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
 		currTaskDefinitionArn := *describeNewServicesOutput.Services[0].TaskDefinition
-		fmt.Printf("New Task Definition Arn: %s\n", newTaskDefinitionArn)
-		fmt.Printf("Current Task Definition Arn: %s\n", currTaskDefinitionArn)
-		if newTaskDefinitionArn == currTaskDefinitionArn {
+		runningCount := *describeServicesOutput.Services[0].RunningCount
+		fmt.Printf("Task Definition Arn: %s\n", currTaskDefinitionArn)
+		fmt.Printf("Running Count: %d", runningCount)
+		if runningCount > 0 {
 			fmt.Println("Deployment done.")
 			break
 		} else {
