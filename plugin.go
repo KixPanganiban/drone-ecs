@@ -373,13 +373,16 @@ func (p *Plugin) Exec() error {
 		return serr
 	}
 
-	describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
-	for *describeNewServicesOutput.Services[0].TaskDefinition != newTaskDefinitionArn {
-		time.Sleep(10)
-		describeNewServicesOutput, _ = DescribeServices(svc, p.Cluster, p.Service)
+	for {
+		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
 		fmt.Printf("New Task Definition Arn: %s\n", newTaskDefinitionArn)
 		fmt.Printf("Current Task Definition Arn: %s\n", *describeServicesOutput.Services[0].TaskDefinition)
-		fmt.Println("Sleeping for 10 seconds...")
+		if newTaskDefinitionArn == *describeNewServicesOutput.Services[0].TaskDefinition {
+			break
+		} else {
+			time.Sleep(10)
+			fmt.Println("Sleeping for 10 seconds...")
+		}
 	}
 
 	// fmt.Println(sresp)
