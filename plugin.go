@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -75,6 +76,15 @@ const (
 	maximumPercentBaseParseErr        = "error parsing deployment_configuration maximumPercent: "
 )
 
+// DescribeServices returns an ecs.DescribeServicesOutput based on the service given by cluster and service
+func DescribeServices(svc *ecs.ECS, cluster string, service string) (*ecs.DescribeServicesOutput, error) {
+	describeServicesInput := ecs.DescribeServicesInput{
+		Cluster:  aws.String(cluster),
+		Services: []*string{aws.String(service)},
+	}
+	return svc.DescribeServices(&describeServicesInput)
+}
+
 func (p *Plugin) Exec() error {
 	fmt.Println("Drone AWS ECS Plugin built")
 	awsConfig := aws.Config{}
@@ -85,11 +95,7 @@ func (p *Plugin) Exec() error {
 	awsConfig.Region = aws.String(p.Region)
 	svc := ecs.New(session.New(&awsConfig))
 
-	describeServicesInput := ecs.DescribeServicesInput{
-		Cluster:  aws.String(p.Cluster),
-		Services: []*string{aws.String(p.Service)},
-	}
-	describeServicesOutput, describeServicesErr := svc.DescribeServices(&describeServicesInput)
+	describeServicesOutput, describeServicesErr := DescribeServices(svc, p.Cluster, p.Service)
 	if describeServicesErr != nil {
 		fmt.Println(describeServicesErr.Error())
 		return describeServicesErr
@@ -330,11 +336,11 @@ func (p *Plugin) Exec() error {
 		return err
 	}
 
-	val := *(resp.TaskDefinition.TaskDefinitionArn)
+	newTaskDefinitionArn := *(resp.TaskDefinition.TaskDefinitionArn)
 	sparams := &ecs.UpdateServiceInput{
 		Cluster:              aws.String(p.Cluster),
 		Service:              aws.String(p.Service),
-		TaskDefinition:       aws.String(val),
+		TaskDefinition:       aws.String(newTaskDefinitionArn),
 		NetworkConfiguration: p.setupServiceNetworkConfiguration(),
 	}
 
@@ -362,13 +368,23 @@ func (p *Plugin) Exec() error {
 		MinimumHealthyPercent: aws.Int64(minimumHealthyPercent),
 	}
 
-	sresp, serr := svc.UpdateService(sparams)
+	_, serr := svc.UpdateService(sparams)
 	if serr != nil {
 		return serr
 	}
 
-	fmt.Println(sresp)
-	fmt.Println(resp)
+	describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
+	for *describeNewServicesOutput.Services[0].TaskDefinition != newTaskDefinitionArn {
+		time.Sleep(10)
+		describeNewServicesOutput, _ = DescribeServices(svc, p.Cluster, p.Service)
+		fmt.Printf("New Task Definition Arn: %s\n", newTaskDefinitionArn)
+		fmt.Printf("Current Task Definition Arn: %s\n", *describeServicesOutput.Services[0].TaskDefinition)
+		fmt.Println("Sleeping for 10 seconds...")
+	}
+
+	// fmt.Println(sresp)
+	// fmt.Println(resp)
+	fmt.Println("Deployment done.")
 	return nil
 }
 
