@@ -375,12 +375,19 @@ func (p *Plugin) Exec() error {
 
 	for {
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
-		currTaskDefinitionArn := *describeNewServicesOutput.Services[0].TaskDefinition
-		runningCount := *describeServicesOutput.Services[0].RunningCount
-		desiredCount := *describeServicesOutput.Services[0].DesiredCount
-		fmt.Printf("Task Definition Arn: %s\n", currTaskDefinitionArn)
-		fmt.Printf("Running Count: %d", runningCount)
-		fmt.Printf("Desired Count: %d", desiredCount)
+		taskSets := describeNewServicesOutput.Services[0].TaskSets
+		var newTaskSet *ecs.TaskSet
+		for _, taskSet := range taskSets {
+			if *taskSet.TaskDefinition == newTaskDefinitionArn {
+				newTaskSet = taskSet
+				break
+			}
+		}
+		runningCount := *newTaskSet.RunningCount
+		desiredCount := *newTaskSet.ComputedDesiredCount
+		fmt.Printf("Task Definition Arn: %s\n", newTaskDefinitionArn)
+		fmt.Printf("Running Count: %d\n", runningCount)
+		fmt.Printf("Desired Count: %d\n", desiredCount)
 		if runningCount == desiredCount {
 			fmt.Println("Deployment done.")
 			break
