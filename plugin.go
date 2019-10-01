@@ -375,22 +375,22 @@ func (p *Plugin) Exec() error {
 
 	for {
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
-		taskSets := describeNewServicesOutput.Services[0].TaskSets
-		var newTaskSet *ecs.TaskSet
-		fmt.Println("Looking for task set...")
-		for _, taskSet := range taskSets {
-			fmt.Printf("Current task set task definition: %s, wanted: %s\n", *taskSet.TaskDefinition, newTaskDefinitionArn)
-			if *taskSet.TaskDefinition == newTaskDefinitionArn {
-				newTaskSet = taskSet
+		deployments := describeNewServicesOutput.Services[0].Deployments
+		var targetDeployment *ecs.Deployment
+		fmt.Println("Looking for deployment...")
+		for _, deployment := range deployments {
+			fmt.Printf("Current deployment task definition: %s, wanted: %s\n", *deployment.TaskDefinition, newTaskDefinitionArn)
+			if *deployment.TaskDefinition == newTaskDefinitionArn {
+				targetDeployment = deployment
 				break
 			}
 		}
-		if newTaskSet == nil {
+		if targetDeployment == nil {
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		runningCount := *newTaskSet.RunningCount
-		desiredCount := *newTaskSet.ComputedDesiredCount
+		runningCount := *targetDeployment.RunningCount
+		desiredCount := *targetDeployment.DesiredCount
 		fmt.Printf("Task Definition Arn: %s\n", newTaskDefinitionArn)
 		fmt.Printf("Running Count: %d\n", runningCount)
 		fmt.Printf("Desired Count: %d\n", desiredCount)
