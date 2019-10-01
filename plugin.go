@@ -373,13 +373,20 @@ func (p *Plugin) Exec() error {
 		return serr
 	}
 
+	waitedTime := 0
+	maxWait := 3600 // 1 hour
+	fmt.Printf("New Task Definition Arn: %s\n", newTaskDefinitionArn)
+	fmt.Println("Waiting for deployment to finish.")
 	for {
+		if waitedTime >= maxWait {
+			errMsg := fmt.Sprintf("[%s] Deployment failed after exceeding 3600 seconds.", time.Now().String())
+			fmt.Println(errMsg)
+			return errors.New(errMsg)
+		}
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
 		deployments := describeNewServicesOutput.Services[0].Deployments
 		var targetDeployment *ecs.Deployment
-		fmt.Println("Looking for deployment...")
 		for _, deployment := range deployments {
-			fmt.Printf("Current deployment task definition: %s, wanted: %s\n", *deployment.TaskDefinition, newTaskDefinitionArn)
 			if *deployment.TaskDefinition == newTaskDefinitionArn {
 				targetDeployment = deployment
 				break
@@ -391,20 +398,16 @@ func (p *Plugin) Exec() error {
 		}
 		runningCount := *targetDeployment.RunningCount
 		desiredCount := *targetDeployment.DesiredCount
-		fmt.Printf("Task Definition Arn: %s\n", newTaskDefinitionArn)
-		fmt.Printf("Running Count: %d\n", runningCount)
-		fmt.Printf("Desired Count: %d\n", desiredCount)
+		fmt.Printf("[%s] Running/Desired: %d/%d\n", time.Now().String(), runningCount, desiredCount)
 		if runningCount == desiredCount {
 			fmt.Println("Deployment done.")
 			break
 		} else {
+			fmt.Printf("[%s] Sleeping for 10 seconds...\n", time.Now().String())
 			time.Sleep(10 * time.Second)
-			fmt.Println("Sleeping for 10 seconds...")
 		}
 	}
 
-	// fmt.Println(sresp)
-	// fmt.Println(resp)
 	return nil
 }
 
