@@ -383,12 +383,12 @@ func (p *Plugin) Exec() error {
 				break
 			}
 		}
-		runningCount := *newTaskSet.RunningCount
-		desiredCount := *newTaskSet.ComputedDesiredCount
+		runningCount := newTaskSet.RunningCount
+		desiredCount := newTaskSet.ComputedDesiredCount
 		fmt.Printf("Task Definition Arn: %s\n", newTaskDefinitionArn)
 		fmt.Printf("Running Count: %d\n", runningCount)
 		fmt.Printf("Desired Count: %d\n", desiredCount)
-		if runningCount == desiredCount {
+		if *runningCount == *desiredCount {
 			fmt.Println("Deployment done.")
 			break
 		} else {
