@@ -377,7 +377,9 @@ func (p *Plugin) Exec() error {
 		describeNewServicesOutput, _ := DescribeServices(svc, p.Cluster, p.Service)
 		taskSets := describeNewServicesOutput.Services[0].TaskSets
 		var newTaskSet *ecs.TaskSet
+		fmt.Println("Looking for task set...")
 		for _, taskSet := range taskSets {
+			fmt.Printf("Current task set task definition: %s, wanted: %s\n", *taskSet.TaskDefinition, newTaskDefinitionArn)
 			if *taskSet.TaskDefinition == newTaskDefinitionArn {
 				newTaskSet = taskSet
 				break
