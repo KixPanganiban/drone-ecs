@@ -404,6 +404,7 @@ func (p *Plugin) Exec() error {
 			break
 		} else {
 			fmt.Printf("[%s] Sleeping for 10 seconds...\n", time.Now().String())
+			waitedTime += 10
 			time.Sleep(10 * time.Second)
 		}
 	}
